@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const { App } = require('@slack/bolt');
+const { getOpenAIResponse, checkRateLimit } = require('./aiService');
 
 /**
  * This sample slack application uses SocketMode.
@@ -28,74 +29,102 @@ app.message(async ({ message, logger }) => {
 });
 
 // Handle app mentions (when someone @mentions the bot)
-app.event('app_mention', async ({ event, say, logger }) => {
+app.event('app_mention', async ({ event, say, client, logger }) => {
   try {
     logger.info('Bot was mentioned:', event);
-    await say({
+    
+    // Check rate limit
+    if (!checkRateLimit(event.user)) {
+      await say({
+        text: ':warning: You\'ve reached the rate limit. Please try again in a minute.',
+        thread_ts: event.thread_ts || event.ts
+      });
+      return;
+    }
+    
+    // Send initial "thinking" message
+    const thinkingMessage = await say({
+      text: ':hourglass_flowing_sand: Thinking...',
+      thread_ts: event.thread_ts || event.ts // Reply in thread if applicable
+    });
+    
+    // Extract the actual message (remove the bot mention)
+    const botUserId = (await client.auth.test()).user_id;
+    const userMessage = event.text.replace(`<@${botUserId}>`, '').trim();
+    
+    // Get OpenAI response
+    const aiResponse = await getOpenAIResponse(userMessage, event.user);
+    
+    // Update the message with the AI response
+    await client.chat.update({
+      channel: event.channel,
+      ts: thinkingMessage.ts,
+      text: aiResponse,
       blocks: [
         {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": `Hey there <@${event.user}>! You mentioned me.`
-          },
-          "accessory": {
-            "type": "button",
-            "text": {
-              "type": "plain_text",
-              "text": "Click Me"
-            },
-            "action_id": "button_click"
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: aiResponse
           }
         }
-      ],
-      text: `Hey there <@${event.user}>! You mentioned me.`
+      ]
     });
-    logger.info('Successfully responded to mention');
+    
+    logger.info('Successfully responded to mention with AI');
   } catch (error) {
     logger.error('Error responding to mention:', error);
-  }
-});
-
-// Listens to incoming messages that contain "hello"
-app.message('hello', async ({ message, say, logger }) => {
-  try {
-    logger.info('Hello message received:', { channel: message.channel, user: message.user });
-    // say() sends a message to the channel where the event was triggered
     await say({
-      blocks: [
-        {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": `Hey there <@${message.user}>!`
-          },
-          "accessory": {
-            "type": "button",
-            "text": {
-              "type": "plain_text",
-              "text": "Click Me"
-            },
-            "action_id": "button_click"
-          }
-        }
-      ],
-      text: `Hey there <@${message.user}>!`
+      text: ':x: Sorry, I encountered an error processing your request.',
+      thread_ts: event.thread_ts || event.ts
     });
-    logger.info('Successfully responded to hello');
-  } catch (error) {
-    logger.error('Error responding to hello:', error);
   }
 });
 
-app.message('goodbye', async ({ say, logger }) => {
+// Handle direct messages to the bot
+app.message(async ({ message, say, client, logger }) => {
+  // Skip if it's a bot message or has a subtype (like message_changed)
+  if (message.bot_id || message.subtype) return;
+  
   try {
-    const responses = ['Adios', 'Au revoir', 'Farewell'];
-    const parting = responses[Math.floor(Math.random() * responses.length)];
-    await say(`${parting}!`);
-    logger.info('Successfully responded to goodbye');
+    // Check if it's a DM
+    const channelInfo = await client.conversations.info({ channel: message.channel });
+    if (channelInfo.channel.is_im) {
+      logger.info('Received DM:', message);
+      
+      // Check rate limit
+      if (!checkRateLimit(message.user)) {
+        await say(':warning: You\'ve reached the rate limit. Please try again in a minute.');
+        return;
+      }
+      
+      // Send initial "thinking" message
+      const thinkingMessage = await say(':hourglass_flowing_sand: Thinking...');
+      
+      // Get OpenAI response
+      const aiResponse = await getOpenAIResponse(message.text, message.user);
+      
+      // Update the message with the AI response
+      await client.chat.update({
+        channel: message.channel,
+        ts: thinkingMessage.ts,
+        text: aiResponse,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: aiResponse
+            }
+          }
+        ]
+      });
+      
+      logger.info('Successfully responded to DM with AI');
+    }
   } catch (error) {
-    logger.error('Error responding to goodbye:', error);
+    logger.error('Error responding to DM:', error);
+    await say(':x: Sorry, I encountered an error processing your request.');
   }
 });
 
@@ -103,7 +132,7 @@ app.action('button_click', async ({ body, ack, say, logger }) => {
   try {
     // Acknowledge the action
     await ack();
-    await say(`<@${body.user.id}> clicked the button`);
+    await say(`<@${body.user.id}> clicked the button! Try mentioning me with @Cora for business advice.`);
     logger.info('Successfully handled button click');
   } catch (error) {
     logger.error('Error handling button click:', error);

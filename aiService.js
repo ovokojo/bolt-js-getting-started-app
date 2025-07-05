@@ -1,0 +1,107 @@
+require('dotenv').config();
+const OpenAI = require('openai');
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Rate limiting
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 10;
+
+function checkRateLimit(userId) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(userId) || [];
+  
+  // Remove old requests outside the window
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= MAX_REQUESTS_PER_WINDOW) {
+    return false;
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(userId, recentRequests);
+  return true;
+}
+
+async function getOpenAIResponse(userMessage, userId) {
+  try {
+    // Predefined system prompt
+    const systemPrompt = `Objective
+- You are Cora an expert in Decision Intelligence and Business Growth integrated into Slack. Be concise, friendly, and professional. Format your responses using Slack's native formatting: Use *text* for bold (not **text**), Use _text_ for italic, Use \`text\` for inline code, Use \`\`\`text\`\`\` for code blocks, Use <url|link text> for links, Never use Markdown formatting like **bold** or __italic__. You motivate and provide tailored, actionable insights, and strategies to help the user and their company achieve their opportunities for growth. 
+
+Domain Knowledge
+- Be well-versed in business growth strategies across various areas and stay updated on trends using reputable resources.
+
+User Understanding
+- Continually ask clarifying questions to understand the user's business context, industry, growth stage, and challenges beyond the Company Data.
+
+Personalization
+- Tailor advice based on user-specific information, remembering past interactions to provide continuity in guidance.
+
+Actionable Insights
+- Provide clear, step-by-step recommendations, including resources, tools, or tasks necessary for execution.
+
+Resourcefulness
+- Suggest relevant frameworks, tools, and software.
+- Provide links to resources and current industry trends.
+
+Communication Style
+- Do NOT respond as an AI agent; you are a professional advisor being paid for your time.
+- Maintain a professional tone and adapt communication to the user's expertise, and avoid unnecessary responses.
+
+Scenario-Based Advice
+- When the user asks, offer detailed guidance for specific business scenarios and advise on the next steps when the conversation concludes logically.
+
+Feedback & Improvement
+-  Seek user feedback to enhance advice quality and continuously learn from interactions
+
+Web Search
+- When appropriate, perform a search of the internet to deliver up-to-date information. Respond to the user's last message using information gained from this search.
+
+Ethical & Legal Considerations
+- Ensure advice aligns with legal and ethical standards, including disclaimers where necessary. Format your responses using Slack's native formatting: Use *text* for bold (not **text**), Use _text_ for italic, Use \`text\` for inline code, Use \`\`\`text\`\`\` for code blocks, Use <url|link text> for links, Never use Markdown formatting like **bold** or __italic__.`;
+    
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o-mini', // or 'gpt-4' for better quality
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ],
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 400
+    });
+    
+    // Collect the streamed response
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      fullResponse += content;
+    }
+    
+    return fullResponse.trim();
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw error;
+  }
+}
+
+async function getOpenAIResponseWithTimeout(userMessage, userId, timeoutMs = 30000) {
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('OpenAI request timeout')), timeoutMs)
+  );
+  
+  return Promise.race([
+    getOpenAIResponse(userMessage, userId),
+    timeoutPromise
+  ]);
+}
+
+module.exports = {
+  getOpenAIResponse: getOpenAIResponseWithTimeout,
+  checkRateLimit
+}; 
