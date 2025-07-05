@@ -22,16 +22,24 @@ Then scroll down in Basic Info and click **Generate Token and Scopes** with both
 
 ### 1. Setup environment variables
 
+Copy the example environment file and add your tokens:
+
 ```zsh
-# Replace with your bot and app token
-export SLACK_BOT_TOKEN=<your-bot-token> # from the OAuth section
-export SLACK_APP_TOKEN=<your-app-level-token> # from the Basic Info App Token Section
+# Copy the example environment file
+cp .env.example .env
+```
+
+Then edit `.env` and replace the placeholder values:
+
+```env
+SLACK_BOT_TOKEN=xoxb-your-actual-bot-token
+SLACK_APP_TOKEN=xapp-your-actual-app-token
 ```
 
 ### 2. Setup your local project
 
 ```zsh
-# Clone this project onto your machine
+# Clone this project onto your machine #TODO: Update to CModel Repo link
 git clone https://github.com/slackapi/bolt-js-getting-started-app.git
 
 # Change into the project
