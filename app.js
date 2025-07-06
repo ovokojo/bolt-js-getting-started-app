@@ -1,7 +1,8 @@
 require('dotenv').config();
 
 const { App } = require('@slack/bolt');
-const { getOpenAIResponse, checkRateLimit } = require('./aiService');
+const { getOpenAIResponse, getOpenAIResponseWithContext, checkRateLimit } = require('./aiService');
+const { ThreadContextCache, getThreadHistory, THREAD_CONFIG } = require('./threadContext');
 
 /**
  * This sample slack application uses SocketMode.
@@ -15,6 +16,9 @@ const app = new App({
   socketMode: true,
   appToken: process.env.SLACK_APP_TOKEN
 });
+
+// Initialize thread context cache
+const threadContextCache = new ThreadContextCache();
 
 // Add logging to see all incoming messages for debugging
 app.message(async ({ message, logger }) => {
@@ -31,7 +35,12 @@ app.message(async ({ message, logger }) => {
 // Handle app mentions (when someone @mentions the bot)
 app.event('app_mention', async ({ event, say, client, logger }) => {
   try {
-    logger.info('Bot was mentioned:', event);
+    logger.info('Bot was mentioned:', {
+      channel: event.channel,
+      thread_ts: event.thread_ts,
+      ts: event.ts,
+      isThread: !!event.thread_ts
+    });
     
     // Check rate limit
     if (!checkRateLimit(event.user)) {
@@ -52,8 +61,62 @@ app.event('app_mention', async ({ event, say, client, logger }) => {
     const botUserId = (await client.auth.test()).user_id;
     const userMessage = event.text.replace(`<@${botUserId}>`, '').trim();
     
-    // Get OpenAI response
-    const aiResponse = await getOpenAIResponse(userMessage, event.user);
+    let aiResponse;
+    
+    // Check if this is a thread message
+    if (event.thread_ts) {
+      const threadId = `${event.channel}-${event.thread_ts}`;
+      
+      // Try to get cached context
+      let conversationHistory = threadContextCache.get(threadId);
+      
+      if (!conversationHistory) {
+        // Fetch thread history from Slack
+        conversationHistory = await getThreadHistory(
+          client, 
+          event.channel, 
+          event.thread_ts, 
+          botUserId
+        );
+        
+        // Only cache if we have history
+        if (conversationHistory.length > 0) {
+          threadContextCache.set(threadId, conversationHistory);
+        }
+      }
+      
+      logger.info(`Thread context loaded: ${conversationHistory.length} messages`);
+      logger.info('Thread context debug:', {
+        threadId: threadId,
+        cacheHit: !!threadContextCache.get(threadId),
+        historyLength: conversationHistory.length,
+        cacheSize: threadContextCache.cache.size
+      });
+      
+      // Get OpenAI response with context
+      aiResponse = await getOpenAIResponseWithContext(
+        userMessage, 
+        event.user, 
+        conversationHistory
+      );
+      
+      // Update cache with new interaction
+      const updatedHistory = [
+        ...conversationHistory,
+        { role: 'user', content: userMessage },
+        { role: 'assistant', content: aiResponse }
+      ];
+      
+      // Keep only the last 100 messages (200 total including user/assistant pairs)
+      if (updatedHistory.length > THREAD_CONFIG.MAX_CONTEXT_MESSAGES * 2) {
+        updatedHistory.splice(0, updatedHistory.length - THREAD_CONFIG.MAX_CONTEXT_MESSAGES * 2);
+      }
+      
+      threadContextCache.set(threadId, updatedHistory);
+    } else {
+      // No thread context needed
+      aiResponse = await getOpenAIResponse(userMessage, event.user);
+    }
     
     // Update the message with the AI response
     await client.chat.update({
@@ -101,7 +164,7 @@ app.message(async ({ message, say, client, logger }) => {
       // Send initial "thinking" message
       const thinkingMessage = await say(':hourglass_flowing_sand: Thinking...');
       
-      // Get OpenAI response
+      // Get OpenAI response (DMs typically don't have thread context)
       const aiResponse = await getOpenAIResponse(message.text, message.user);
       
       // Update the message with the AI response
@@ -148,5 +211,5 @@ app.error(async (error) => {
   // Start your app
   await app.start(process.env.PORT || 3000);
 
-  app.logger.info('⚡️ Cora.Work app is running!');
+  app.logger.info('⚡️ Cora.Work app is running with thread context support!');
 })();

@@ -27,10 +27,8 @@ function checkRateLimit(userId) {
   return true;
 }
 
-async function getOpenAIResponse(userMessage, userId) {
-  try {
-    // Predefined system prompt
-    const systemPrompt = `Objective
+// Shared system prompt
+const systemPrompt = `Objective
 - You are Cora an expert in Decision Intelligence and Business Growth integrated into Slack. Be concise, friendly, and professional. Format your responses using Slack's native formatting: Use *text* for bold (not **text**), Use _text_ for italic, Use \`text\` for inline code, Use \`\`\`text\`\`\` for code blocks, Use <url|link text> for links, Never use Markdown formatting like **bold** or __italic__. You motivate and provide tailored, actionable insights, and strategies to help the user and their company achieve their opportunities for growth. 
 
 Domain Knowledge
@@ -64,9 +62,11 @@ Web Search
 
 Ethical & Legal Considerations
 - Ensure advice aligns with legal and ethical standards, including disclaimers where necessary. Format your responses using Slack's native formatting: Use *text* for bold (not **text**), Use _text_ for italic, Use \`text\` for inline code, Use \`\`\`text\`\`\` for code blocks, Use <url|link text> for links, Never use Markdown formatting like **bold** or __italic__.`;
-    
+
+async function getOpenAIResponse(userMessage, userId) {
+  try {
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // or 'gpt-4' for better quality
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }
@@ -77,6 +77,36 @@ Ethical & Legal Considerations
     });
     
     // Collect the streamed response
+    let fullResponse = '';
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      fullResponse += content;
+    }
+    
+    return fullResponse.trim();
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw error;
+  }
+}
+
+// New function to handle OpenAI calls with conversation context
+async function getOpenAIResponseWithContext(userMessage, userId, conversationHistory = []) {
+  try {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory,
+      { role: 'user', content: userMessage }
+    ];
+    
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: messages,
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 400
+    });
+    
     let fullResponse = '';
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
@@ -101,7 +131,19 @@ async function getOpenAIResponseWithTimeout(userMessage, userId, timeoutMs = 300
   ]);
 }
 
+async function getOpenAIResponseWithContextAndTimeout(userMessage, userId, conversationHistory = [], timeoutMs = 30000) {
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('OpenAI request timeout')), timeoutMs)
+  );
+  
+  return Promise.race([
+    getOpenAIResponseWithContext(userMessage, userId, conversationHistory),
+    timeoutPromise
+  ]);
+}
+
 module.exports = {
   getOpenAIResponse: getOpenAIResponseWithTimeout,
+  getOpenAIResponseWithContext: getOpenAIResponseWithContextAndTimeout,
   checkRateLimit
 }; 
