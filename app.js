@@ -208,8 +208,43 @@ app.error(async (error) => {
 });
 
 (async () => {
-  // Start your app
-  await app.start(process.env.PORT || 3000);
-
-  app.logger.info('⚡️ Cora.Work app is running with thread context support!');
+  try {
+    console.log('🚀 Starting Cora.Work app...');
+    console.log('Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN ? 'Set' : 'Missing',
+      SLACK_APP_TOKEN: process.env.SLACK_APP_TOKEN ? 'Set' : 'Missing',
+      socketMode: true
+    });
+    
+    // For Socket Mode apps on Heroku, we need to start an HTTP server
+    // for health checks even though the Slack app uses WebSocket
+    const express = require('express');
+    const httpApp = express();
+    
+    // Health check endpoint
+    httpApp.get('/', (req, res) => {
+      res.json({ status: 'Cora.Work Slack Bot is running!', timestamp: new Date().toISOString() });
+    });
+    
+    httpApp.get('/health', (req, res) => {
+      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+    });
+    
+    // Start HTTP server for Heroku
+    const port = process.env.PORT || 3000;
+    httpApp.listen(port, () => {
+      console.log(`🌐 HTTP server listening on port ${port} for Heroku health checks`);
+    });
+    
+    // Start the Slack app (Socket Mode - doesn't need port)
+    await app.start();
+    
+    console.log('⚡️ Cora.Work Slack app is running with thread context support!');
+    app.logger.info('⚡️ Cora.Work app is running with thread context support!');
+  } catch (error) {
+    console.error('❌ Failed to start app:', error);
+    process.exit(1);
+  }
 })();
