@@ -11,9 +11,29 @@ Cora is an intelligent Slack bot built with the [Bolt for JavaScript framework][
 - 🧠 **AI-Powered Conversations**: Responds to @mentions and direct messages with intelligent business advice
 - 🎯 **Decision Intelligence**: Expert guidance on business growth strategies across various industries  
 - 📊 **Actionable Insights**: Provides clear, step-by-step recommendations with resources and tools
+- 🧵 **Thread Context Memory**: Maintains conversation history within threads for contextual responses
+- 📝 **Decision Records Integration**: Seamlessly integrates with decision records infrastructure to post updates and answer questions about organizational decisions
 - 💬 **Native Slack Integration**: Proper Slack formatting, thread support, and seamless user experience
 - 🛡️ **Rate Limiting**: Built-in protection with 10 requests per minute per user
 - ⚡ **Streaming Responses**: Real-time AI response generation with "thinking" indicators
+
+## Decision Records Integration
+
+Cora Slack app can integrate with decision records infrastructure for:
+
+### 📋 Decision Record Management
+- **Post Updates**: Automatically posts decision record updates to relevant Slack channels
+- **Answer Questions**: Provides intelligent responses about existing decision records
+- **Search & Reference**: Quickly find and reference past decisions in conversations
+- **Status Tracking**: Monitor decision implementation progress and outcomes
+
+### 🔄 Workflow Integration
+- **Decision Notifications**: Notify teams when new decisions are made or updated
+- **Approval Workflows**: Facilitate decision approval processes through Slack
+- **Stakeholder Updates**: Keep relevant parties informed about decision changes
+- **Historical Context**: Provide context from previous decisions when making new ones
+
+This integration ensures that organizational knowledge and decision-making processes are seamlessly accessible through natural conversation with Cora, making decision intelligence truly conversational and actionable.
 
 ## Running locally
 
@@ -101,6 +121,7 @@ Mention Cora in any channel:
 
 - **`app.js`**: Main Slack bot application with event handlers
 - **`aiService.js`**: OpenAI integration module with streaming and rate limiting
+- **`threadContext.js`**: Thread context management for conversation memory
 - **`manifest.json`**: Slack app configuration
 
 ## Configuration
@@ -111,18 +132,27 @@ Cora is configured as a Decision Intelligence and Business Growth expert with:
 - Concise, actionable advice
 - Slack-native formatting
 - Industry-specific insights
+- Decision records integration capabilities
 - Ethical and legal considerations
+
+### Thread Context
+- **Cache Duration**: 1 hour for thread conversation memory
+- **Message Limit**: Up to 100 messages per thread for context
+- **Auto-cleanup**: Expired threads cleaned up every 15 minutes
 
 ### Customization
 - Modify the system prompt in `aiService.js` to adjust Cora's expertise
 - Update rate limits and token limits as needed
-- Add conversation memory for enhanced context (optional)
+- Configure thread context limits in `threadContext.js`
+- Integrate with decision records APIs for organizational data
 
 ## Troubleshooting
 
 - **No AI responses**: Verify `OPENAI_API_KEY` is set correctly
 - **Rate limit errors**: Users are limited to 10 requests per minute
 - **Formatting issues**: Cora uses Slack formatting (*bold*, _italic_), not Markdown
+- **Thread context issues**: Check Slack app scopes include `groups:history`, `im:read`, `mpim:history`
+- **Decision records integration**: Verify API connections and permissions for decision records system
 
 ## Resources
 
