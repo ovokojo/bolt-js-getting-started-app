@@ -78,11 +78,35 @@ cd slack-agent/cora/
 npm install
 ```
 
-### 3. Start servers
+### 3. Available Scripts
 
+The project includes several convenient scripts for development and process management:
+
+#### Development Scripts
 ```zsh
+# Start the application
 npm run start
+
+# Kill all running instances (prevents multiple instance issues)
+npm run pkill
+
+# Restart cleanly (kills old instances and starts fresh)
+npm run restart
+
+# Quick development restart (alias for restart)
+npm run dev
 ```
+
+#### Recommended Development Workflow
+```zsh
+# For development, use restart to avoid multiple instance issues
+npm run restart
+
+# Or use the short alias
+npm run dev
+```
+
+**Note**: The `restart` and `dev` scripts automatically kill any existing instances before starting a new one, preventing the common issue of multiple app instances running simultaneously.
 
 ### 4. Test Cora's AI Features
 
@@ -153,6 +177,14 @@ Cora is configured as a Decision Intelligence and Business Growth expert with:
 - **Formatting issues**: Cora uses Slack formatting (*bold*, _italic_), not Markdown
 - **Thread context issues**: Check Slack app scopes include `groups:history`, `im:read`, `mpim:history`
 - **Decision records integration**: Verify API connections and permissions for decision records system
+- **Multiple instances running**: If you see old responses or unexpected behavior, check for multiple running processes:
+  ```zsh
+  # Check for running instances
+  ps aux | grep "node app.js"
+  
+  # Kill all instances and restart cleanly
+  npm run restart
+  ```
 
 ## Resources
 

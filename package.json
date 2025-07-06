@@ -5,7 +5,10 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "pkill": "pkill -f \"node app.js\" || true",
+    "restart": "npm run pkill && npm start",
+    "dev": "npm run restart"
   },
   "license": "MIT",
   "dependencies": {
