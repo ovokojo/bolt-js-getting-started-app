@@ -20,23 +20,6 @@ const app = new App({
 // Initialize thread context cache
 const threadContextCache = new ThreadContextCache();
 
-// Handle URL verification challenge for Events API
-// This handles the challenge when setting up Events API subscriptions
-app.use(async ({ body, ack, next, logger }) => {
-  if (body && body.type === 'url_verification') {
-    logger.info('Received URL verification challenge:', body);
-    
-    // Respond with the challenge value as plain text
-    await ack(body.challenge);
-    
-    logger.info('Successfully responded to URL verification challenge');
-    return;
-  }
-  
-  // Continue to next middleware
-  await next();
-});
-
 // Add logging to see all incoming messages for debugging
 app.message(async ({ message, logger }) => {
   logger.info('Received message:', {
