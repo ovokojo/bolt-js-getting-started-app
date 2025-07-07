@@ -238,6 +238,21 @@ app.error(async (error) => {
       console.log(`🌐 HTTP server listening on port ${port} for Heroku health checks`);
     });
     
+    // Keep-alive mechanism to prevent Heroku from sleeping the dyno
+    if (process.env.NODE_ENV === 'production') {
+      const keepAliveInterval = 25 * 60 * 1000; // 25 minutes in milliseconds
+      setInterval(async () => {
+        try {
+          const response = await fetch(`https://slack-agent-cora-3c101624d293.herokuapp.com/health`);
+          console.log(`🔄 Keep-alive ping: ${response.status} - ${new Date().toISOString()}`);
+        } catch (error) {
+          console.error('❌ Keep-alive ping failed:', error.message);
+        }
+      }, keepAliveInterval);
+      
+      console.log(`⏰ Keep-alive mechanism started (pinging every ${keepAliveInterval/1000/60} minutes)`);
+    }
+    
     // Start the Slack app (Socket Mode - doesn't need port)
     await app.start();
     
