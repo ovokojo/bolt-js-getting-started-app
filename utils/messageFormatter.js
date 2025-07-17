@@ -17,39 +17,39 @@ function formatDecisionRecord(decisionData) {
   
   const data = record.data || {};
   
-  // Start with the header
-  let message = '📋 New Decision Record Created\n\n';
+  // Start with the header (add spacing at the beginning)
+  let message = '\n\n📋 New Decision Record Created\n\n\n';
   
+  // Section 1: Basic Info
   // Title is required, so always include it
   const title = data.title?.trim();
   if (title) {
-    message += `*Title:* ${title}\n`;
+    message += `*Title:* ${title}\n\n`;
   }
   
-  // Add optional fields only if they have values
   const status = data.status?.trim();
   if (status) {
-    message += `*Status:* ${status}\n`;
+    message += `*Status:* ${status}\n\n`;
   }
   
-  const path = record.path?.trim();
-  if (path) {
-    message += `*Path:* ${path}\n`;
+  // Section 2: Planning
+  const driver = data.driver?.trim();
+  if (driver) {
+    message += `*Driver:* ${driver}\n\n`;
   }
   
   const context = data.context?.trim();
   if (context) {
-    message += `*Context:* ${context}\n`;
+    message += `*Context:* ${context}\n\n`;
   }
   
+  // Section divider with space
+  message += `\n\n`;
+  
+  // Section 3: People & Responsibilities
   const accountable = data.accountable?.trim();
   if (accountable) {
-    message += `*Accountable:* ${accountable}\n`;
-  }
-  
-  const driver = data.driver?.trim();
-  if (driver) {
-    message += `*Driver:* ${driver}\n`;
+    message += `*Accountable:* ${accountable}\n\n`;
   }
   
   // Handle stakeholders array
@@ -61,34 +61,21 @@ function formatDecisionRecord(decisionData) {
       .join(', ');
     
     if (stakeholdersList) {
-      message += `*Stakeholders:* ${stakeholdersList}\n`;
+      message += `*Stakeholders:* ${stakeholdersList}\n\n`;
     }
   }
   
-  // Handle informed array  
-  const informed = data.informed;
-  if (Array.isArray(informed) && informed.length > 0) {
-    const informedList = informed
-      .filter(i => i && typeof i === 'string' && i.trim())
-      .map(i => i.trim())
-      .join(', ');
-    
-    if (informedList) {
-      message += `*Informed:* ${informedList}\n`;
-    }
+  // Section 4: Metadata
+  const path = record.path?.trim();
+  if (path) {
+    message += `*Path:* ${path}\n\n`;
   }
   
   // Add creation timestamp if available
   const createdAt = record.createdAt;
   if (createdAt && typeof createdAt === 'number') {
     const formattedDate = formatTimestamp(createdAt);
-    message += `*Created:* ${formattedDate}\n`;
-  }
-  
-  // Add decision record ID if available (for tracking)
-  const recordId = record._id?.trim();
-  if (recordId) {
-    message += `*ID:* ${recordId}\n`;
+    message += `*Created:* ${formattedDate}\n\n`;
   }
   
   console.log('Formatted message length:', message.length);
