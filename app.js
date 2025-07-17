@@ -223,7 +223,21 @@ app.error(async (error) => {
     const express = require('express');
     const httpApp = express();
     
-    // Health check endpoint
+    // Import API handlers
+    const { authMiddleware, validateDecisionRecord } = require('./api/middleware');
+    const { createDecisionRecordHandler, handleHealthCheck } = require('./api/decisionRecord');
+    
+    // Add JSON parsing middleware for API routes
+    httpApp.use('/api', express.json({ limit: '1mb' }));
+    
+    // Decision Record API endpoint
+    const decisionRecordHandler = createDecisionRecordHandler(app.client);
+    httpApp.post('/api/decision-record', authMiddleware, validateDecisionRecord, decisionRecordHandler);
+    
+    // API health check endpoint
+    httpApp.get('/api/health', handleHealthCheck);
+    
+    // Original health check endpoints
     httpApp.get('/', (req, res) => {
       res.json({ status: 'Cora.Work Slack Bot is running!', timestamp: new Date().toISOString() });
     });
@@ -236,6 +250,10 @@ app.error(async (error) => {
     const port = process.env.PORT || 3000;
     httpApp.listen(port, () => {
       console.log(`🌐 HTTP server listening on port ${port} for Heroku health checks`);
+      console.log(`📋 Decision Record API available at: http://localhost:${port}/api/decision-record`);
+      console.log(`🔍 API health check available at: http://localhost:${port}/api/health`);
+      console.log(`🔑 API Key configured: ${process.env.DECISION_API_KEY ? 'Yes' : 'No'}`);
+      console.log(`📨 Default channel: ${process.env.DEFAULT_CHANNEL_ID || 'Not set (will use bot DM)'}`);
     });
     
     // Keep-alive mechanism to prevent Heroku from sleeping the dyno
