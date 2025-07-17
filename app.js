@@ -3,6 +3,7 @@ require('dotenv').config();
 const { App } = require('@slack/bolt');
 const { getOpenAIResponse, getOpenAIResponseWithContext, checkRateLimit } = require('./aiService');
 const { ThreadContextCache, getThreadHistory, THREAD_CONFIG } = require('./threadContext');
+const { formatAIResponse, formatError, formatThinkingMessage } = require('./utils/messageFormatter');
 
 /**
  * This sample slack application uses SocketMode.
@@ -44,16 +45,18 @@ app.event('app_mention', async ({ event, say, client, logger }) => {
     
     // Check rate limit
     if (!checkRateLimit(event.user)) {
+      const rateLimitMessage = formatError('You\'ve reached the rate limit. Please try again in a minute.', 'warning');
       await say({
-        text: ':warning: You\'ve reached the rate limit. Please try again in a minute.',
+        ...rateLimitMessage,
         thread_ts: event.thread_ts || event.ts
       });
       return;
     }
     
     // Send initial "thinking" message
+    const thinkingFormatted = formatThinkingMessage();
     const thinkingMessage = await say({
-      text: ':hourglass_flowing_sand: Thinking...',
+      ...thinkingFormatted,
       thread_ts: event.thread_ts || event.ts // Reply in thread if applicable
     });
     
@@ -119,26 +122,19 @@ app.event('app_mention', async ({ event, say, client, logger }) => {
     }
     
     // Update the message with the AI response
+    const formattedResponse = formatAIResponse(aiResponse);
     await client.chat.update({
       channel: event.channel,
       ts: thinkingMessage.ts,
-      text: aiResponse,
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: aiResponse
-          }
-        }
-      ]
+      ...formattedResponse
     });
     
     logger.info('Successfully responded to mention with AI');
   } catch (error) {
     logger.error('Error responding to mention:', error);
+    const errorMessage = formatError('Sorry, I encountered an error processing your request.');
     await say({
-      text: ':x: Sorry, I encountered an error processing your request.',
+      ...errorMessage,
       thread_ts: event.thread_ts || event.ts
     });
   }
@@ -157,37 +153,32 @@ app.message(async ({ message, say, client, logger }) => {
       
       // Check rate limit
       if (!checkRateLimit(message.user)) {
-        await say(':warning: You\'ve reached the rate limit. Please try again in a minute.');
+        const rateLimitMessage = formatError('You\'ve reached the rate limit. Please try again in a minute.', 'warning');
+        await say(rateLimitMessage);
         return;
       }
       
       // Send initial "thinking" message
-      const thinkingMessage = await say(':hourglass_flowing_sand: Thinking...');
+      const thinkingFormatted = formatThinkingMessage();
+      const thinkingMessage = await say(thinkingFormatted);
       
       // Get OpenAI response (DMs typically don't have thread context)
       const aiResponse = await getOpenAIResponse(message.text, message.user);
       
       // Update the message with the AI response
+      const formattedResponse = formatAIResponse(aiResponse);
       await client.chat.update({
         channel: message.channel,
         ts: thinkingMessage.ts,
-        text: aiResponse,
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: aiResponse
-            }
-          }
-        ]
+        ...formattedResponse
       });
       
       logger.info('Successfully responded to DM with AI');
     }
   } catch (error) {
     logger.error('Error responding to DM:', error);
-    await say(':x: Sorry, I encountered an error processing your request.');
+    const errorMessage = formatError('Sorry, I encountered an error processing your request.');
+    await say(errorMessage);
   }
 });
 

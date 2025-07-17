@@ -3,7 +3,7 @@
  */
 
 const { resolveChannel } = require('../utils/channelResolver');
-const { formatDecisionRecord, createLogPreview } = require('../utils/messageFormatter');
+const { formatDecisionRecord } = require('../utils/messageFormatter');
 
 /**
  * Handles POST requests to create decision record notifications
@@ -18,9 +18,31 @@ function createDecisionRecordHandler(slackClient) {
       const { channel: requestChannel, data } = req.body;
       const fallbackChannel = process.env.DEFAULT_CHANNEL_ID;
       
-      // Create log preview for debugging
-      const preview = createLogPreview({ data });
-      console.log('Decision record preview:', preview);
+      // Extract decision record data
+      const record = data?.record;
+      const recordData = record?.data || {};
+      
+      // Transform data for new formatter (original field structure)
+      const formatterData = {
+        title: recordData.title || 'Untitled Decision',
+        status: recordData.status || 'Pending',
+        driver: recordData.driver || 'Not specified',
+        context: recordData.context || 'No context provided',
+        accountable: recordData.accountable || 'Not specified',
+        stakeholders: recordData.stakeholders || [],
+        path: record?.path || 'Not specified',
+        createdDate: record?.createdAt || Date.now()
+      };
+      
+      console.log('Decision record data:', {
+        title: formatterData.title,
+        status: formatterData.status,
+        driver: formatterData.driver,
+        hasContext: !!formatterData.context,
+        accountable: formatterData.accountable,
+        stakeholdersCount: Array.isArray(formatterData.stakeholders) ? formatterData.stakeholders.length : 0,
+        path: formatterData.path
+      });
       
       // Resolve target channel
       console.log('Resolving target channel...');
@@ -38,17 +60,17 @@ function createDecisionRecordHandler(slackClient) {
         });
       }
       
-      // Format the message
-      console.log('Formatting Slack message...');
-      const messageText = formatDecisionRecord({ data });
+      // Format the message using Block Kit
+      console.log('Formatting Slack message with Block Kit...');
+      const formattedMessage = formatDecisionRecord(formatterData);
       
-      console.log('Message preview (first 200 chars):', messageText.substring(0, 200));
+      console.log('Block Kit message created with', formattedMessage.blocks.length, 'blocks');
       
       // Post to Slack
       console.log('Posting to Slack channel:', targetChannel);
       const slackResponse = await slackClient.chat.postMessage({
         channel: targetChannel,
-        text: messageText,
+        ...formattedMessage,
         unfurl_links: false,
         unfurl_media: false
       });
@@ -57,7 +79,8 @@ function createDecisionRecordHandler(slackClient) {
         console.log('✅ Successfully posted to Slack:', {
           channel: targetChannel,
           messageTs: slackResponse.ts,
-          title: preview.title
+          title: formatterData.title,
+          blockCount: formattedMessage.blocks.length
         });
         
         return res.status(200).json({

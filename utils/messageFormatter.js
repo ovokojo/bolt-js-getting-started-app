@@ -1,166 +1,222 @@
 /**
- * Message formatting utility for decision records
+ * Message Formatter Utility
+ * Formats different types of messages using Slack Block Kit
  */
 
 /**
- * Formats a decision record into a Slack message
- * @param {Object} decisionData - Decision record data from request
- * @returns {string} - Formatted Slack message
+ * Formats AI responses with Block Kit structure
+ * @param {string} text - The AI response text
+ * @returns {object} Block Kit formatted message
  */
-function formatDecisionRecord(decisionData) {
-  console.log('Formatting decision record message');
-  
-  const record = decisionData.data?.record;
-  if (!record) {
-    throw new Error('Invalid decision record structure');
-  }
-  
-  const data = record.data || {};
-  
-  // Start with the header (add spacing at the beginning)
-  let message = '\n\n📋 New Decision Record Created\n\n\n';
-  
-  // Section 1: Basic Info
-  // Title is required, so always include it
-  const title = data.title?.trim();
-  if (title) {
-    message += `*Title:* ${title}\n\n`;
-  }
-  
-  const status = data.status?.trim();
-  if (status) {
-    message += `*Status:* ${status}\n\n`;
-  }
-  
-  // Section 2: Planning
-  const driver = data.driver?.trim();
-  if (driver) {
-    message += `*Driver:* ${driver}\n\n`;
-  }
-  
-  const context = data.context?.trim();
-  if (context) {
-    message += `*Context:* ${context}\n\n`;
-  }
-  
-  // Section divider with space
-  message += `\n\n`;
-  
-  // Section 3: People & Responsibilities
-  const accountable = data.accountable?.trim();
-  if (accountable) {
-    message += `*Accountable:* ${accountable}\n\n`;
-  }
-  
-  // Handle stakeholders array
-  const stakeholders = data.stakeholders;
-  if (Array.isArray(stakeholders) && stakeholders.length > 0) {
-    const stakeholdersList = stakeholders
-      .filter(s => s && typeof s === 'string' && s.trim())
-      .map(s => s.trim())
-      .join(', ');
-    
-    if (stakeholdersList) {
-      message += `*Stakeholders:* ${stakeholdersList}\n\n`;
-    }
-  }
-  
-  // Section 4: Metadata
-  const path = record.path?.trim();
-  if (path) {
-    message += `*Path:* ${path}\n\n`;
-  }
-  
-  // Add creation timestamp if available
-  const createdAt = record.createdAt;
-  if (createdAt && typeof createdAt === 'number') {
-    const formattedDate = formatTimestamp(createdAt);
-    message += `*Created:* ${formattedDate}\n\n`;
-  }
-  
-  console.log('Formatted message length:', message.length);
-  return message.trim();
-}
-
-/**
- * Formats a timestamp into a readable date string
- * @param {number} timestamp - Unix timestamp in milliseconds
- * @returns {string} - Formatted date string
- */
-function formatTimestamp(timestamp) {
-  try {
-    const date = new Date(timestamp);
-    
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-      return 'Invalid date';
-    }
-    
-    // Format as: January 18, 2025 at 3:45 PM
-    const options = {
-      year: 'numeric',
-      month: 'long', 
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'UTC'
-    };
-    
-    return date.toLocaleString('en-US', options);
-  } catch (error) {
-    console.error('Error formatting timestamp:', error);
-    return 'Unknown date';
-  }
-}
-
-/**
- * Sanitizes text input for Slack messages
- * @param {string} text - Text to sanitize
- * @returns {string} - Sanitized text
- */
-function sanitizeText(text) {
-  if (!text || typeof text !== 'string') {
-    return '';
-  }
-  
-  return text
-    .trim()
-    .replace(/[<>&]/g, (char) => {
-      switch (char) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '&': return '&amp;';
-        default: return char;
-      }
-    })
-    .substring(0, 3000); // Limit length to prevent overly long messages
-}
-
-/**
- * Creates a preview of the decision record for logging
- * @param {Object} decisionData - Decision record data
- * @returns {Object} - Preview object for logging
- */
-function createLogPreview(decisionData) {
-  const record = decisionData.data?.record;
-  const data = record?.data || {};
-  
+function formatAIResponse(text) {
   return {
-    title: data.title,
-    status: data.status,
-    path: record?.path,
-    recordId: record?._id,
-    hasContext: !!data.context,
-    hasStakeholders: Array.isArray(data.stakeholders) && data.stakeholders.length > 0,
-    hasInformed: Array.isArray(data.informed) && data.informed.length > 0,
-    createdAt: record?.createdAt
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: text
+        }
+      },
+      {
+        type: 'divider'
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: 'ℹ Cora can make mistakes. Consider checking important information'
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Formats decision record notifications with Block Kit structure and button
+ * @param {object} data - Decision record data
+ * @returns {object} Block Kit formatted message
+ */
+function formatDecisionRecord(data) {
+  const {
+    title,
+    status,
+    driver,
+    context,
+    accountable,
+    stakeholders,
+    path,
+    createdDate
+  } = data;
+
+  // Format stakeholders as comma-separated list
+  const stakeholdersList = Array.isArray(stakeholders) 
+    ? stakeholders.join(', ')
+    : stakeholders || 'Not specified';
+
+  // Format the creation date
+  const formattedDate = createdDate 
+    ? new Date(createdDate).toLocaleDateString()
+    : new Date().toLocaleDateString();
+
+  return {
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '📋 New Decision Record',
+          emoji: true
+        }
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*Title:*\n${title || 'Untitled Decision'}`
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Status:*\n${status || 'Pending'}`
+          }
+        ]
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*Driver:*\n${driver || 'Not specified'}`
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Accountable:*\n${accountable || 'Not specified'}`
+          }
+        ]
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Context:*\n${context || 'No context provided'}`
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Stakeholders:*\n${stakeholdersList}`
+        }
+      },
+      {
+        type: 'divider'
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `📁 *Path:*\n${path || 'Not specified'}`
+          },
+          {
+            type: 'mrkdwn',
+            text: `📅 *Created:*\n${formattedDate}`
+          }
+        ]
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'View Decision Record',
+              emoji: true
+            },
+            url: 'https://app.cora.work',
+            action_id: 'view_decision_record'
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Formats error messages with Block Kit structure
+ * @param {string} message - Error message text
+ * @param {string} type - Error type ('error', 'warning', 'info')
+ * @returns {object} Block Kit formatted message
+ */
+function formatError(message, type = 'error') {
+  const emojiMap = {
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+
+  const titleMap = {
+    error: 'Error',
+    warning: 'Warning',
+    info: 'Information'
+  };
+
+  return {
+    blocks: [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: `${emojiMap[type]} ${titleMap[type]}`,
+          emoji: true
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: message
+        }
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: '💬 Try rephrasing your request or contact support if the issue persists'
+          }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Formats the thinking message with Block Kit structure
+ * @returns {object} Block Kit formatted thinking message
+ */
+function formatThinkingMessage() {
+  return {
+    text: ':hourglass_flowing_sand: Thinking...',
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: ':hourglass_flowing_sand: *Thinking...*'
+        }
+      }
+    ]
   };
 }
 
 module.exports = {
+  formatAIResponse,
   formatDecisionRecord,
-  formatTimestamp,
-  sanitizeText,
-  createLogPreview
+  formatError,
+  formatThinkingMessage
 }; 
